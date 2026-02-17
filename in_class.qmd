@@ -5,6 +5,7 @@ editor: visual
 ---
 
 Load libraries and split data into training and testing sets.
+
 ```{r}
 # Load packages.
 library(tidyverse)
@@ -18,6 +19,7 @@ soup_split <- initial_time_split(soup_data, prop = 0.90)
 ```
 
 Define our recipe (outline the model).
+
 ```{r}
 soup_recipe <- training(soup_split) |> 
   recipe(Sales ~ Any_Disp_Spend + Any_Price_Decr_Spend + Sub_Category)
@@ -236,16 +238,8 @@ Preprocessing occurs in three places in our analysis.
 
 AFTER you do the train-test split,
 
-1. on the training data, prior to training our model.
-2. on the testing data, prior to generating predictions to evaluate model fit.
-3. on the counterfactuals, prior to generating counterfactual predictions
+1.  on the training data, prior to training our model.
+2.  on the testing data, prior to generating predictions to evaluate model fit.
+3.  on the counterfactuals, prior to generating counterfactual predictions
 
-* make sure we reverse any pre-processing steps necessary for our predictions 
-to be on the original scale.
-
-
-
-
-
-
-
+-   make sure we reverse any pre-processing steps necessary for our predictions to be on the original scale.

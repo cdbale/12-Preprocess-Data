@@ -4,11 +4,11 @@ author: "Marc Dotson"
 format: docx
 ---
 
-Return again to `soup_data` and the models from the previous exercises.
+Return again to `soup_data` and your models used in Exercises 9 and 10.
 
 1. Check for right-skewed continuous variables.
 2. Prepare a recipe using the necessary steps.
-3. Fit the models again on the preprocessed training data.
+3. Fit the models from the previous exercises again on the preprocessed training data.
 4. Compute the RMSE again using the preprocessed testing data. Is the same model as last time still the best-fitting model?
 5. Use the best-fitting model (based on RMSE) and predict `Sales` using three possible ways to split $6000 for the promotions budget. As with the training and testing data, be sure to preprocess the new data. What should the client do with their promotional budget? Provide an interpretation using dollars.
 6. Render the Quarto document into Word and upload to Canvas.
@@ -91,22 +91,6 @@ fit_02 <- linear_reg() |>
     Sales ~ Any_Feat_Spend + Any_Price_Decr_Spend, 
     data = soup_training
   )
-
-# Model without feature spend.
-fit_03 <- linear_reg() |> 
-  set_engine(engine = "lm") |> 
-  fit(
-    Sales ~ Any_Disp_Spend + Any_Price_Decr_Spend, 
-    data = soup_training
-  )
-
-# Model without price decrease spend.
-fit_04 <- linear_reg() |> 
-  set_engine(engine = "lm") |> 
-  fit(
-    Sales ~ Any_Disp_Spend + Any_Feat_Spend, 
-    data = soup_training
-  )
 ```
 
 ## Overall Model Fit
@@ -125,64 +109,50 @@ rmse_02 <- fit_02 |>
   bind_cols(soup_testing) |>
   rmse(truth = Sales, estimate = .pred)
 
-rmse_03 <- fit_03 |> 
-  predict(new_data = soup_testing) |>
-  bind_cols(soup_testing) |>
-  rmse(truth = Sales, estimate = .pred)
-
-rmse_04 <- fit_04 |> 
-  predict(new_data = soup_testing) |>
-  bind_cols(soup_testing) |>
-  rmse(truth = Sales, estimate = .pred)
-
 # Compare RMSEs.
 tibble(
   model = c(
     "Full model", 
-    "Model without display spend", 
-    "Model without feature spend", 
-    "Model without price decrease spend"
+    "Model without display spend"
   )
 ) |> 
   bind_cols(
     bind_rows(
       rmse_01,
-      rmse_02,
-      rmse_03,
-      rmse_04
+      rmse_02
     )
   ) |> 
   arrange(.estimate)
 ```
 
-Based on RMSE, the best-fitting model is now the model without price decrease spend. Without the log transform, the best-fitting model was the full model.
+Based on RMSE, the best-fitting model is still the full model.
 
 ## Predict Sales
 
-We'll use `fit_04`, the best fitting model without price decrease spend, to predict `Sales` using three possible ways to split 6 thousand dollars for the promotions budget two ways. As with the training and testing data, we will apply the recipe to preprocess the new data.
+We'll use `fit_01`, the best fitting full model, to predict `Sales` using three possible ways to split 6 thousand dollars for the promotions budget. As with the training and testing data, we will apply the recipe to preprocess the new data.
 
 ```{r}
 # Column names and preprocessing needs to match the fitted model.
 scenarios <- tibble(
-  Any_Disp_Spend = seq(from = 0, to = 6000, by = 3000),
-  Any_Feat_Spend = seq(from = 6000, to = 0, by = -3000),
-  Any_Price_Decr_Spend = 1,
+  Any_Disp_Spend = seq(from = 0, to = 4000, by = 2000),
+  Any_Feat_Spend = seq(from = 4000, to = 0, by = -2000),
+  Any_Price_Decr_Spend = 2000,
   Sales = 1
 )
 
 # Apply the recipe to the training data.
 scenarios <- soup_recipe |>
   bake(scenarios) |> 
-  select(-c(Sales, Any_Price_Decr_Spend))
+  select(-Sales)
 
 # Predict and bind on prediction intervals.
 bind_cols(
-  predict(fit_04, new_data = scenarios),
-  predict(fit_04, new_data = scenarios, type = "pred_int"),
+  predict(fit_01, new_data = scenarios),
+  predict(fit_01, new_data = scenarios, type = "pred_int"),
   scenarios
 ) |> 
   arrange(desc(.pred))
 ```
 
-The client should split the promotional budget between display spend and feature spend. By splitting the $6000, they can expect to make, on average, $344,913 (`exp(12.75105) = 344913.90`) in the category.
+The client should split the promotional budget equally between all three categories as this gives a marginally higher predicted value for sales. By splitting the \$6000, they can expect to make, on average, $197,497.30 (`exp(12.19348) = 197497.3`) in the category.
 

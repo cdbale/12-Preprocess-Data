@@ -64,10 +64,16 @@ soup_recipe
 
 ## Here's How We Think About Recipes...
 
-- The outcome variable is what we are making
-- The explanatory variables are our ingredients
-- The recipe defines steps that prepare the ingredients for our model, which produces our outcome
-- We'll spend time today learning about different types of pre-processing that might be required
+- The **Data** is our *pantry* - where we find all of the ingredients
+- We are making a dish for our guest of honor - the **Model**
+- The model expects an outcome variable and explanatory variables prepared in specific ways
+- We define a *Recipe* that outlines how our ingredients (outcome and explanatory variables) must be prepared for our model
+
+## What Will We Do Today?
+
+- Discuss some common pre-processing (recipe) steps
+- Practice creating a recipe
+- See the impact that pre-processing can have on model results
 
 ## Right-Skewed Continuous Data
 
@@ -200,7 +206,7 @@ soup_recipe
 
 ## Discrete Data
 
-How many binary variables will we have when we dummy code this discrete variable?
+In additional to right-skewed continuous variables, we also need to pre-process discrete variables. How many binary variables will we have when we dummy code this discrete variable?
 
 ```{r}
 soup_data |> 
@@ -240,22 +246,12 @@ Following the recipe analogy, we apply a prepared recipe to data using `bake()`.
 # Apply the recipe to the training data.
 baked_soup_training <- soup_recipe |>
   bake(training(soup_split))
-
-# Apply the recipe to the testing data.
-baked_soup_testing <- soup_recipe |>
-  bake(testing(soup_split))
 ```
 
 ---
 
 ```{r}
 baked_soup_training
-```
-
----
-
-```{r}
-baked_soup_testing
 ```
 
 ## Fit with Preprocessed Training Data
@@ -289,7 +285,7 @@ If we want to use it, there is a horizontal version of the error bars plot.
 tidy(fit_baked, conf.int = TRUE) |> 
   ggplot(aes(y = term)) + 
   geom_point(aes(x = estimate)) + 
-  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), height = .1, orientation = 'y') +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), orientation = 'y') +
   geom_vline(xintercept = 0, color = "red")
 ```
 
@@ -300,7 +296,7 @@ tidy(fit_baked, conf.int = TRUE) |>
 tidy(fit_raw, conf.int = TRUE) |> 
   ggplot(aes(y = term)) + 
   geom_point(aes(x = estimate)) + 
-  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), height = .1, orientation = 'y') +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), orientation = 'y') +
   geom_vline(xintercept = 0, color = "red")
 ```
 
@@ -311,7 +307,7 @@ tidy(fit_raw, conf.int = TRUE) |>
 tidy(fit_baked, conf.int = TRUE) |> 
   ggplot(aes(y = term)) + 
   geom_point(aes(x = estimate)) + 
-  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), height = .1, orientation = 'y') +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), orientation = 'y') +
   geom_vline(xintercept = 0, color = "red")
 ```
 
@@ -327,9 +323,15 @@ How does the log transform change parameter interpretations?
 - *y* and log($x_1$): A **1% increase** in $x_1$ leads to a **$\beta_1$/100 unit change** in *y* (relative to the baseline level of $x_1$), holding all other variables fixed.
 - log(*y*) and log($x_1$): A **1% increase** in $x_1$ leads to a **$\beta_1$% change** in *y* (relative to the baseline level of $x_1$), holding all other variables fixed.
 
-## Compute RMSE with Preprocessed Testing Data
+## Your Turn!
 
-```{r}
+We need to compute the RMSE of our two models using the testing data. Make sure to apply all necessary pre-processing steps to the testing data before applying the model that was trained on the pre-processed training data.
+
+```{r echo = FALSE}
+# Apply the recipe to the testing data.
+baked_soup_testing <- soup_recipe |>
+  bake(testing(soup_split))
+
 bind_rows(
   # Compute RMSE without preprocessed testing data.
   predict(fit_raw, new_data = testing(soup_split)) |>
@@ -342,10 +344,36 @@ bind_rows(
 )
 ```
 
+## Solution
+
+```{r eval = FALSE}
+# Apply the recipe to the testing data.
+# THIS is why recipes are so helpful - they allow you to save 
+# your pre-processing steps and apply them across different data frames
+baked_soup_testing <- soup_recipe |>
+  bake(testing(soup_split))
+
+bind_rows(
+  # Compute RMSE without preprocessed testing data.
+  predict(fit_raw, new_data = testing(soup_split)) |>
+    bind_cols(testing(soup_split)) |>
+    rmse(truth = Sales, estimate = .pred),
+  # Compute RMSE with preprocessed testing data.
+  predict(fit_baked, new_data = baked_soup_testing) |>
+    bind_cols(baked_soup_testing) |>
+    rmse(truth = Sales, estimate = .pred)
+)
+```
 
 ## Wait...Were the Previous RMSE values Comparable?
 
+## Wait...Were the Previous RMSE values Comparable?
+
+No! One of our error measures was computed on the log-scale. We need to either transform the predictions of our first model using the `log()` function, or transform the predictions of the second model using the `exp()` function.
+
 ## The Model Improved...But not THAT Much
+
+Evaluation on raw scale.
 
 ```{r}
 bind_rows(
@@ -353,7 +381,7 @@ bind_rows(
   predict(fit_raw, new_data = testing(soup_split)) |>
     bind_cols(testing(soup_split)) |>
     rmse(truth = Sales, estimate = .pred),
-  # Compute RMSE for predictions from preprocessed testing data...using the raw Y values
+  # Compute RMSE after transforming predictions from preprocessed testing data
   predict(fit_baked, new_data = baked_soup_testing) |>
     bind_cols(testing(soup_split)) |>
     mutate(.pred = exp(.pred)) |>
@@ -361,9 +389,27 @@ bind_rows(
 )
 ```
 
+## The Model Improved...But not THAT Much
+
+Evaluation on log scale.
+
+```{r}
+bind_rows(
+  # Compute RMSE after transforming predictions from raw testing data.
+  predict(fit_raw, new_data = testing(soup_split)) |>
+    bind_cols(baked_soup_testing) |>
+    mutate(.pred = log(.pred)) |>
+    rmse(truth = Sales, estimate = .pred),
+  # Compute RMSE for predictions from preprocessed testing data
+  predict(fit_baked, new_data = baked_soup_testing) |>
+    bind_cols(baked_soup_testing) |>
+    rmse(truth = Sales, estimate = .pred)
+)
+```
+
 ## Apply a Recipe for Prediction
 
-Wait, there's more! Having all of the preprocessing steps saved as a recipe means we can easily apply it to `new_data` when using `predict()` to evaluate counterfactuals. Construct the counterfactual data in the same form as the raw data so that it will work with our recipe.
+Having all of the preprocessing steps saved as a recipe means we can easily apply it to `new_data` when using `predict()` to evaluate counterfactuals. Construct the counterfactual data in the same form as the raw data so that it will work with our recipe.
 
 ## Recall the Format of the Raw Data
 
@@ -400,7 +446,7 @@ scenarios
 
 ---
 
-Remove the outcome and apply the recipe before using the new data for `predict()`.
+Apply the recipe and remove the outcome variable before using the new data for `predict()`.
 
 ```{r}
 # Apply the recipe to the training data.
@@ -436,6 +482,28 @@ We can manually wrangle everything that a step function can do, but step functio
 
 We also have additional helper functions like `all_predictors()`.
 
+## Final Note: Important!
+
+REMEMBER THESE POINTS:
+
+Preprocessing occurs in three places in our analysis.
+
+AFTER you do the train-test split,
+
+1.  on the training data, prior to training your model(s).
+2.  on the testing data, prior to generating predictions to evaluate model fit.
+3.  on the counterfactuals, prior to generating counterfactual predictions
+
+- Make sure you reverse any pre-processing steps necessary for your predictions to be on the original scale.
+
+## Live Coding
+
+Our old client, **iFood**, has requested an updated model for total sales. Now that we have knowledge of various pre-processing skills, let's build and assess a new model for them.
+
+```{r}
+
+```
+
 ## Wrapping Up
 
 *Summary*
@@ -459,8 +527,7 @@ Return again to `soup_data` and your models used in Exercises 9 and 10.
 
 1. Check for right-skewed continuous variables.
 2. Prepare a recipe using the necessary steps.
-3. Fit the models again on the preprocessed training data.
+3. Fit the models from the previous exercises again on the preprocessed training data.
 4. Compute the RMSE again using the preprocessed testing data. Is the same model as last time still the best-fitting model?
 5. Use the best-fitting model (based on RMSE) and predict `Sales` using three possible ways to split $6000 for the promotions budget. As with the training and testing data, be sure to preprocess the new data. What should the client do with their promotional budget? Provide an interpretation using dollars.
 6. Render the Quarto document into Word and upload to Canvas.
-
