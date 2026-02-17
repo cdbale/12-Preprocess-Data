@@ -1,6 +1,6 @@
 ---
 title: "Preprocess Data"
-subtitle: "MKTG 411 Marketing Analytics"
+subtitle: "MCB Consulting Group (MKTG 411)"
 output: 
   ioslides_presentation:
     widescreen: true
@@ -61,6 +61,13 @@ soup_recipe
 <center>
 ![](Figures/monsters_recipes.png){width=900px}
 </center>
+
+## Here's How We Think About Recipes...
+
+- The outcome variable is what we are making
+- The explanatory variables are our ingredients
+- The recipe defines steps that prepare the ingredients for our model, which produces our outcome
+- We'll spend time today learning about different types of pre-processing that might be required
 
 ## Right-Skewed Continuous Data
 
@@ -282,7 +289,7 @@ If we want to use it, there is a horizontal version of the error bars plot.
 tidy(fit_baked, conf.int = TRUE) |> 
   ggplot(aes(y = term)) + 
   geom_point(aes(x = estimate)) + 
-  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = .1) +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), height = .1, orientation = 'y') +
   geom_vline(xintercept = 0, color = "red")
 ```
 
@@ -293,7 +300,7 @@ tidy(fit_baked, conf.int = TRUE) |>
 tidy(fit_raw, conf.int = TRUE) |> 
   ggplot(aes(y = term)) + 
   geom_point(aes(x = estimate)) + 
-  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = .1) +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), height = .1, orientation = 'y') +
   geom_vline(xintercept = 0, color = "red")
 ```
 
@@ -304,7 +311,7 @@ tidy(fit_raw, conf.int = TRUE) |>
 tidy(fit_baked, conf.int = TRUE) |> 
   ggplot(aes(y = term)) + 
   geom_point(aes(x = estimate)) + 
-  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = .1) +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), height = .1, orientation = 'y') +
   geom_vline(xintercept = 0, color = "red")
 ```
 
@@ -446,9 +453,9 @@ We also have additional helper functions like `all_predictors()`.
 
 *Artwork by @allison_horst*
 
-## Exercise 13
+## Exercise 11
 
-Return again to `soup_data` and your models used in Exercises 11 and 12.
+Return again to `soup_data` and your models used in Exercises 9 and 10.
 
 1. Check for right-skewed continuous variables.
 2. Prepare a recipe using the necessary steps.

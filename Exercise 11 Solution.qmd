@@ -31,7 +31,7 @@ library(tidyverse)
 library(tidymodels)
 
 # Import and filter data.
-soup_data <- read_csv(here::here("Data", "soup_data.csv")) |> 
+soup_data <- read_csv("soup_data.csv") |> 
   filter(Retailer_Trade_Areas == "WEST CENSUS TA", Brand_High == "CAMPBELL'S")
 
 # Visualize the continuous variables.
