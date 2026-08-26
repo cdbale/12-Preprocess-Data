@@ -178,6 +178,12 @@ fit_baked <- linear_reg() |>
 
 ## Evaluate Parameter Estimates
 
+```{r}
+fit_baked |>
+  tidy()
+```
+
+
 If we want to use it, there is a horizontal version of the error bars plot.
 
 Error Bar plot for 'Raw' Data
@@ -207,7 +213,22 @@ tidy(fit_baked, conf.int = TRUE) |>
 We need to compute the RMSE of our two models using the testing data. Make sure to apply all necessary pre-processing steps to the testing data before applying the model that was trained on the pre-processed training data.
 
 ```{r}
+# Apply the recipe to the testing data.
+# THIS is why recipes are so helpful - they allow you to save 
+# your pre-processing steps and apply them across different data frames
+baked_soup_testing <- soup_recipe |>
+  bake(testing(soup_split))
 
+bind_rows(
+  # Compute RMSE without preprocessed testing data.
+  predict(fit_raw, new_data = testing(soup_split)) |>
+    bind_cols(testing(soup_split)) |>
+    rmse(truth = Sales, estimate = .pred),
+  # Compute RMSE with preprocessed testing data.
+  predict(fit_baked, new_data = baked_soup_testing) |>
+    bind_cols(baked_soup_testing) |>
+    rmse(truth = Sales, estimate = .pred)
+)
 ```
 
 Model comparison on raw scale.
@@ -255,7 +276,7 @@ soup_data |>
 
 # Construct Counterfactuals
 
-Allocate $10,000 spend between display and price decreases for each sub-category.
+Allocate \$10,000 spend between display and price decreases for each sub-category.
 
 ```{r}
 # Counterfactual scenarios.
@@ -288,8 +309,6 @@ baked_scenarios <- soup_recipe |>
 baked_scenarios
 ```
 
----
-
 Generate point predictions and predictive intervals.
 
 ```{r}
@@ -311,4 +330,3 @@ Our old client, **iFood**, has requested an updated model for total sales. Now t
 ```{r}
 
 ```
-
