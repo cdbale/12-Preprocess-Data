@@ -7,6 +7,15 @@ output:
     css: style.css
 ---
 
+## Key Concepts | Prepare the Data for the Story
+
+- **Preprocessing:** data wrangling for models, including transformations and feature engineering.
+- **Dummy coding:** express categorical levels as binary indicator variables.
+- **Reference levels:** interpret each indicator relative to its omitted baseline.
+- **Consistent predictions:** apply the training recipe to testing data and counterfactuals, then report results in meaningful units.
+
+Today we develop the **preprocess** stage introduced in lecture 07 and connect it to the full modeling workflow.
+
 ## Marketing Analytics Process
 
 <center>
@@ -157,7 +166,9 @@ soup_data |>
 
 ---
 
-The linear model assumes *normally distributed errors*. This means our Y variable should be approximately normal (or at least as close as we can get it)! We can preprocess right-skewed continuous data by using a `log()` (i.e., logarithmic) transform.
+Recall lecture 07's distinction between the outcome and statistical error $\epsilon$. Normal-error regression concerns errors **conditional on the predictors**; it does not require the outcome or predictors themselves to have normal histograms. A `log()` transform can help model skewed data, nonlinear relationships, or changing error spread. Evaluate whether it improves the model rather than assuming every skewed variable needs transformation.
+
+## Explore a Log Transformation
 
 - Why a `log()` transform? What is a logarithm?
 - What is the *inverse* of a logarithm?
@@ -206,16 +217,45 @@ soup_recipe
 
 ## Discrete Data
 
-In additional to right-skewed continuous variables, we also need to pre-process discrete variables. How many binary variables will we have when we dummy code this discrete variable?
+Lecture 07 used soup sub-categories to introduce dummy coding. These are **categorical labels**, not equally spaced numbers. How many levels occur in the full data, and how many indicators will an intercept-based regression need?
 
 ```{r}
 soup_data |> 
   count(Sub_Category)
 ```
 
----
+## Dummy Coding | Two Soup Categories
+
+First consider only `CONDENSED SOUP` and `RAMEN`, as in lecture 07. We can create a binary column for each label:
+
+| `Sub_Category` | `condensed_soup` | `ramen` |
+|---|---:|---:|
+| CONDENSED SOUP | 1 | 0 |
+| RAMEN | 0 | 1 |
+
+With an intercept, keep only one indicator. If condensed soup is the **reference level**, `ramen = 0` represents condensed soup and `ramen = 1` represents ramen.
+
+The ramen coefficient is its expected difference from condensed soup, holding the other predictors fixed. Dropping an indicator does not drop those observations.
+
+## Dummy Coding | More Levels, More Indicators
+
+Now add `DRY SOUP`. Using condensed soup as the baseline gives:
+
+| `Sub_Category` | `ramen` | `dry_soup` |
+|---|---:|---:|
+| CONDENSED SOUP | 0 | 0 |
+| RAMEN | 1 | 0 |
+| DRY SOUP | 0 | 1 |
+
+- With an intercept, a categorical predictor with $k$ levels uses $k - 1$ indicators.
+- All $k$ indicators sum to 1, duplicating the intercept: an extreme case of the multicollinearity from lecture 10.
+- Each categorical predictor has its own baseline; this table illustrates three categories, not the full data's level count.
+
+## Put Dummy Coding into the Recipe
 
 We add this step to our recipe using `step_dummy()`. We could reference all discrete variables in the model with `all_nominal()`.
+
+The default creates $k - 1$ indicators. Check the reference level before interpreting coefficients; do not assume that the illustrative baseline above was selected automatically.
 
 ```{r}
 soup_recipe <- training(soup_split) |> 
@@ -228,7 +268,7 @@ soup_recipe
 
 ## Prepare a Recipe
 
-We can build the recipe all at once. Once we're ready, we can `prep()` the recipe using the training data. The resulting object is a complete recipe that we can apply to whatever data we'd like.
+We can build the recipe all at once. Once we're ready, we can `prep()` the recipe using the training data. This learns any data-dependent settings, including category levels, from training data only. Reuse that prepared recipe with `bake()` for testing data and scenarios; do not prepare a separate recipe on each data set.
 
 ```{r}
 soup_recipe <- training(soup_split) |> 
@@ -313,8 +353,12 @@ tidy(fit_baked, conf.int = TRUE) |>
 
 ---
 
-$$\text{Sales} = 5.42 + 0.12 \times \text{Any_Display_Spend} + \\
+$$\log(\text{Sales} + 1) = 5.42 + 0.12 \times \log(\text{Any_Disp_Spend} + 1) + \\
 ... + .18 \times \text{Sub_Category_RTS.SOUP} + ...$$
+
+The recipe transforms `Sales` and the numeric spending variables with `log(value + 1)`; the sub-category indicators remain 0/1.
+
+## Interpreting Transformed Relationships
 
 How does the log transform change parameter interpretations?
 
@@ -322,6 +366,8 @@ How does the log transform change parameter interpretations?
 - log(*y*) and $x_1$: A **one unit increase** in $x_1$ leads to a **100 × $\beta_1$% change** in *y* (relative to the baseline level of $x_1$), holding all other variables fixed.
 - *y* and log($x_1$): A **1% increase** in $x_1$ leads to a **$\beta_1$/100 unit change** in *y* (relative to the baseline level of $x_1$), holding all other variables fixed.
 - log(*y*) and log($x_1$): A **1% increase** in $x_1$ leads to a **$\beta_1$% change** in *y* (relative to the baseline level of $x_1$), holding all other variables fixed.
+
+These percentage rules are approximations for unshifted logs. In our recipe, they concern `Sales + 1` and `spend + 1`. For budget decisions, compare scenario predictions after returning to sales dollars.
 
 ## Your Turn!
 
@@ -369,7 +415,7 @@ bind_rows(
 
 ## Wait...Were the Previous RMSE values Comparable?
 
-No! One of our error measures was computed on the log-scale. We need to either transform the predictions of our first model using the `log()` function, or transform the predictions of the second model using the `exp()` function.
+No! One error measure was computed on the `log(Sales + 1)` scale. To compare models, predictions and observed outcomes must use the same scale: apply `log(.pred + 1)` to raw-scale predictions, or `exp(.pred) - 1` to transformed-scale predictions. The added 1 in our recipe must be reversed too.
 
 ## The Model Improved...But not THAT Much
 
@@ -384,7 +430,7 @@ bind_rows(
   # Compute RMSE after transforming predictions from preprocessed testing data
   predict(fit_baked, new_data = baked_soup_testing) |>
     bind_cols(testing(soup_split)) |>
-    mutate(.pred = exp(.pred)) |>
+    mutate(.pred = exp(.pred) - 1) |>
     rmse(truth = Sales, estimate = .pred)
 )
 ```
@@ -398,7 +444,7 @@ bind_rows(
   # Compute RMSE after transforming predictions from raw testing data.
   predict(fit_raw, new_data = testing(soup_split)) |>
     bind_cols(baked_soup_testing) |>
-    mutate(.pred = log(.pred)) |>
+    mutate(.pred = log(.pred + 1)) |>
     rmse(truth = Sales, estimate = .pred),
   # Compute RMSE for predictions from preprocessed testing data
   predict(fit_baked, new_data = baked_soup_testing) |>
@@ -410,6 +456,8 @@ bind_rows(
 ## Apply a Recipe for Prediction
 
 Having all of the preprocessing steps saved as a recipe means we can easily apply it to `new_data` when using `predict()` to evaluate counterfactuals. Construct the counterfactual data in the same form as the raw data so that it will work with our recipe.
+
+This returns to lecture 07's managerial question: how should Kroger allocate promotional spending? Changing the input values defines the scenario; preprocessing expresses those inputs in the form our fitted model expects.
 
 ## Recall the Format of the Raw Data
 
@@ -471,6 +519,17 @@ bind_cols(
   arrange(desc(.pred))
 ```
 
+## Return the Scenarios to the Managerial Decision
+
+The model above predicts `log(Sales + 1)`. Before communicating the scenarios to Kroger:
+
+- Transform point predictions and prediction-interval endpoints with `exp(value) - 1` to return to sales dollars.
+- Compare feasible budget allocations on that same scale, with their uncertainty and sub-category baselines in view.
+- Explain that simply reversing a log prediction does not generally estimate **mean** sales; under normal log-scale errors it estimates the conditional median.
+- Treat the recommendation as conditional on the model's story. Neither preprocessing nor good predictive fit proves what a spending intervention will cause.
+
+Which additional evidence would make the budget recommendation more convincing?
+
 ## Other Preprocessing Steps
 
 We can manually wrangle everything that a step function can do, but step functions can be a lot easier to use. Beyond `step_log()` and `step_dummy()`, for example:
@@ -510,6 +569,7 @@ Our old client, **iFood**, has requested an updated model for total sales. Now t
 
 - Walked through preprocessing data using recipes.
 - Demonstrated the log transform and dummy coding.
+- Completed the story-to-decision workflow by applying one training recipe to observed and hypothetical data.
 
 *Next Time*
 
